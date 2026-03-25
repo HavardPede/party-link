@@ -2,6 +2,7 @@ package com.example.link;
 
 import java.io.IOException;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -21,6 +22,7 @@ public class CommandExecutor
 
 	private static final String AUTHORIZATION_HEADER = "Authorization";
 	private static final String BEARER_PREFIX = "Bearer ";
+	private static final String PLAYER_NAME_HEADER = "X-Player-Name";
 	private static final String JOIN_PARTY = "JOIN_PARTY";
 	private static final String LEAVE_PARTY = "LEAVE_PARTY";
 	private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json");
@@ -29,12 +31,15 @@ public class CommandExecutor
 	private final Consumer<String> changeParty;
 	private final OkHttpClient httpClient;
 	private final LinkConfig config;
+	private final Supplier<String> playerNameSupplier;
 
-	public CommandExecutor(Consumer<String> changeParty, OkHttpClient httpClient, LinkConfig config)
+	public CommandExecutor(Consumer<String> changeParty, OkHttpClient httpClient, LinkConfig config,
+		Supplier<String> playerNameSupplier)
 	{
 		this.changeParty = changeParty;
 		this.httpClient = httpClient;
 		this.config = config;
+		this.playerNameSupplier = playerNameSupplier;
 	}
 
 	public void executeCommands(String json, String bearerToken)
@@ -101,11 +106,16 @@ public class CommandExecutor
 	{
 		try
 		{
-			Request request = new Request.Builder()
+			String playerName = playerNameSupplier.get();
+			Request.Builder builder = new Request.Builder()
 				.url(config.serverUrl() + ACK_PATH_PREFIX + id + ACK_PATH_SUFFIX)
 				.header(AUTHORIZATION_HEADER, BEARER_PREFIX + bearerToken)
-				.post(EMPTY_BODY)
-				.build();
+				.post(EMPTY_BODY);
+			if (playerName != null)
+			{
+				builder.header(PLAYER_NAME_HEADER, playerName);
+			}
+			Request request = builder.build();
 
 			try (Response response = httpClient.newCall(request).execute())
 			{

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -38,16 +39,23 @@ public class LinkPlugin extends Plugin
 	private LinkConfig config;
 
 	private LinkPoller poller;
+	private RsnDetector rsnDetector;
 
 	@Override
 	protected void startUp() throws Exception
 	{
+		rsnDetector = new RsnDetector(
+			okHttpClient,
+			config,
+			() -> client.getLocalPlayer() != null ? client.getLocalPlayer().getName() : null
+		);
 		CommandExecutor commandExecutor = new CommandExecutor(
 			passphrase -> clientThread.invokeLater(() -> partyService.changeParty(passphrase)),
 			okHttpClient,
-			config
+			config,
+			() -> rsnDetector != null ? rsnDetector.getDetectedName() : null
 		);
-		poller = new LinkPoller(okHttpClient, executorService, config, commandExecutor);
+		poller = new LinkPoller(okHttpClient, executorService, config, commandExecutor, rsnDetector);
 		log.info("Link plugin started");
 
 		if (client.getGameState() == GameState.LOGGED_IN
@@ -55,6 +63,11 @@ public class LinkPlugin extends Plugin
 			&& !config.bearerToken().isEmpty())
 		{
 			poller.start();
+		}
+
+		if (client.getGameState() == GameState.LOGGED_IN)
+		{
+			rsnDetector.onLoggedIn();
 		}
 	}
 
@@ -75,12 +88,19 @@ public class LinkPlugin extends Plugin
 				{
 					poller.start();
 				}
+				rsnDetector.onLoggedIn();
 				break;
 			case HOPPING:
 			case LOGIN_SCREEN:
 				poller.stop();
 				break;
 		}
+	}
+
+	@Subscribe
+	public void onGameTick(GameTick event)
+	{
+		rsnDetector.onGameTick();
 	}
 
 	@Provides

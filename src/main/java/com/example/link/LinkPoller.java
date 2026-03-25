@@ -17,22 +17,25 @@ public class LinkPoller
 	static final String COMMANDS_PATH = "/api/plugin/commands";
 	private static final String AUTHORIZATION_HEADER = "Authorization";
 	private static final String BEARER_PREFIX = "Bearer ";
+	private static final String PLAYER_NAME_HEADER = "X-Player-Name";
 
 	private final OkHttpClient httpClient;
 	private final ScheduledExecutorService executor;
 	private final LinkConfig config;
 	private final CommandExecutor commandExecutor;
+	private final RsnDetector rsnDetector;
 
 	private ScheduledFuture<?> pollTask;
 	private int currentIntervalSeconds = BASE_INTERVAL_SECONDS;
 
 	public LinkPoller(OkHttpClient httpClient, ScheduledExecutorService executor, LinkConfig config,
-		CommandExecutor commandExecutor)
+		CommandExecutor commandExecutor, RsnDetector rsnDetector)
 	{
 		this.httpClient = httpClient;
 		this.executor = executor;
 		this.config = config;
 		this.commandExecutor = commandExecutor;
+		this.rsnDetector = rsnDetector;
 	}
 
 	public void start()
@@ -94,10 +97,15 @@ public class LinkPoller
 
 	String fetchCommands(String token) throws IOException
 	{
-		Request request = new Request.Builder()
+		String playerName = rsnDetector.getDetectedName();
+		Request.Builder builder = new Request.Builder()
 			.url(config.serverUrl() + COMMANDS_PATH)
-			.header(AUTHORIZATION_HEADER, BEARER_PREFIX + token)
-			.build();
+			.header(AUTHORIZATION_HEADER, BEARER_PREFIX + token);
+		if (playerName != null)
+		{
+			builder.header(PLAYER_NAME_HEADER, playerName);
+		}
+		Request request = builder.build();
 
 		try (Response response = httpClient.newCall(request).execute())
 		{

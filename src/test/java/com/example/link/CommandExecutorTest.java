@@ -58,7 +58,7 @@ public class CommandExecutorTest
 		};
 
 		LinkConfig fakeConfig = new FakeLinkConfig(FAKE_SERVER_URL);
-		executor = new CommandExecutor(spyChangeParty, fakeHttpClient, fakeConfig);
+		executor = new CommandExecutor(spyChangeParty, fakeHttpClient, fakeConfig, () -> null);
 	}
 
 	@Test

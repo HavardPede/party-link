@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.party.PartyService;
@@ -31,6 +32,9 @@ public class LinkPlugin extends Plugin
 	private ScheduledExecutorService executorService;
 
 	@Inject
+	private ClientThread clientThread;
+
+	@Inject
 	private LinkConfig config;
 
 	private LinkPoller poller;
@@ -38,7 +42,11 @@ public class LinkPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-		poller = new LinkPoller(okHttpClient, executorService, config);
+		CommandExecutor commandExecutor = new CommandExecutor(
+			passphrase -> clientThread.invokeLater(() -> partyService.changeParty(passphrase)),
+			okHttpClient
+		);
+		poller = new LinkPoller(okHttpClient, executorService, config, commandExecutor);
 		log.info("Link plugin started");
 	}
 

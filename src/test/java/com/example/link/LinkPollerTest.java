@@ -33,13 +33,16 @@ public class LinkPollerTest
 	private FakeHttpClient fakeHttpClient;
 	private LinkPoller poller;
 
+	private CommandExecutor stubCommandExecutor;
+
 	@Before
 	public void setUp()
 	{
 		fakeExecutor = new FakeExecutor();
 		fakeConfig = new FakeConfig("test-token", true);
 		fakeHttpClient = new FakeHttpClient();
-		poller = new LinkPoller(fakeHttpClient, fakeExecutor, fakeConfig);
+		stubCommandExecutor = new CommandExecutor(passphrase -> {}, new OkHttpClient());
+		poller = new LinkPoller(fakeHttpClient, fakeExecutor, fakeConfig, stubCommandExecutor);
 	}
 
 	@Test

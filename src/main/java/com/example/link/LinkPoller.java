@@ -21,15 +21,18 @@ public class LinkPoller
 	private final OkHttpClient httpClient;
 	private final ScheduledExecutorService executor;
 	private final LinkConfig config;
+	private final CommandExecutor commandExecutor;
 
 	private ScheduledFuture<?> pollTask;
 	private int currentIntervalSeconds = BASE_INTERVAL_SECONDS;
 
-	public LinkPoller(OkHttpClient httpClient, ScheduledExecutorService executor, LinkConfig config)
+	public LinkPoller(OkHttpClient httpClient, ScheduledExecutorService executor, LinkConfig config,
+		CommandExecutor commandExecutor)
 	{
 		this.httpClient = httpClient;
 		this.executor = executor;
 		this.config = config;
+		this.commandExecutor = commandExecutor;
 	}
 
 	public void start()
@@ -77,8 +80,7 @@ public class LinkPoller
 		try
 		{
 			String responseBody = fetchCommands(token);
-			log.debug("Commands response: {}", responseBody);
-			// TODO: Parse and execute commands (Plan 03)
+			commandExecutor.executeCommands(responseBody, token);
 			currentIntervalSeconds = BASE_INTERVAL_SECONDS;
 		}
 		catch (IOException e)

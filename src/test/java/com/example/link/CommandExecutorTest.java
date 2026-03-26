@@ -1,324 +1,194 @@
 package com.example.link;
 
-import java.io.IOException;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import okhttp3.Call;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Protocol;
 import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
-public class CommandExecutorTest
-{
+public class CommandExecutorTest {
 	private static final String JOIN_JSON =
-		"{\"commands\":[{\"id\":\"cmd-1\",\"type\":\"JOIN_PARTY\",\"passphrase\":\"test-pass\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
+			"{\"commands\":[{\"id\":\"cmd-1\",\"type\":\"JOIN_PARTY\",\"passphrase\":\"test-pass\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
 	private static final String LEAVE_JSON =
-		"{\"commands\":[{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"reason\":null,\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
+			"{\"commands\":[{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"reason\":null,\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
 	private static final String LEAVE_KICKED_JSON =
-		"{\"commands\":[{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"reason\":\"KICKED\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
+			"{\"commands\":[{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"reason\":\"KICKED\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
 	private static final String LEAVE_CLOSED_JSON =
-		"{\"commands\":[{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"reason\":\"CLOSED\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
+			"{\"commands\":[{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"reason\":\"CLOSED\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
 	private static final String LEAVE_LEFT_JSON =
-		"{\"commands\":[{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"reason\":\"LEFT\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
+			"{\"commands\":[{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"reason\":\"LEFT\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
 	private static final String EMPTY_JSON = "{\"commands\":[]}";
 	private static final String UNKNOWN_TYPE_JSON =
-		"{\"commands\":[{\"id\":\"cmd-3\",\"type\":\"UNKNOWN_CMD\",\"passphrase\":null,\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
+			"{\"commands\":[{\"id\":\"cmd-3\",\"type\":\"UNKNOWN_CMD\",\"passphrase\":null,\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
+	private static final String PATH_TRAVERSAL_JSON =
+			"{\"commands\":[{\"id\":\"../../admin/delete\",\"type\":\"JOIN_PARTY\",\"passphrase\":\"test-pass\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}]}";
 	private static final String MULTI_JSON =
-		"{\"commands\":[" +
-			"{\"id\":\"cmd-1\",\"type\":\"JOIN_PARTY\",\"passphrase\":\"pass1\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}," +
-			"{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}" +
-		"]}";
+			"{\"commands\":["
+					+ "{\"id\":\"cmd-1\",\"type\":\"JOIN_PARTY\",\"passphrase\":\"pass1\",\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"},"
+					+ "{\"id\":\"cmd-2\",\"type\":\"LEAVE_PARTY\",\"passphrase\":null,\"partyId\":\"p1\",\"createdAt\":\"2026-01-01\"}"
+					+ "]}";
 	private static final String TOKEN = "test-bearer-token";
-
 	private static final String FAKE_SERVER_URL = "http://localhost:3000";
 
 	private List<String> changePartyCalls;
 	private List<String> chatMessageCalls;
 	private boolean shouldThrowOnChangeParty;
-	private AckCapturingHttpClient fakeHttpClient;
+	private FakeHttpClient fakeHttpClient;
 	private CommandExecutor executor;
 
 	@Before
-	public void setUp()
-	{
+	public void setUp() {
 		changePartyCalls = new ArrayList<>();
 		chatMessageCalls = new ArrayList<>();
 		shouldThrowOnChangeParty = false;
-		fakeHttpClient = new AckCapturingHttpClient();
+		fakeHttpClient = new FakeHttpClient();
 
-		Consumer<String> spyChangeParty = (passphrase) ->
-		{
-			if (shouldThrowOnChangeParty)
-			{
-				throw new RuntimeException("PartyService error");
-			}
-			changePartyCalls.add(passphrase);
-		};
+		Consumer<String> spyChangeParty =
+				passphrase -> {
+					if (shouldThrowOnChangeParty) {
+						throw new RuntimeException("PartyService error");
+					}
+					changePartyCalls.add(passphrase);
+				};
 
-		Consumer<String> spyChatMessage = chatMessageCalls::add;
-
-		LinkConfig fakeConfig = new FakeLinkConfig(FAKE_SERVER_URL);
-		executor = new CommandExecutor(spyChangeParty, spyChatMessage, fakeHttpClient, fakeConfig, () -> null);
+		FakeConfig fakeConfig = new FakeConfig(TOKEN, FAKE_SERVER_URL, true);
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		executor =
+				new CommandExecutor(spyChangeParty, chatMessageCalls::add, apiClient, () -> null);
 	}
 
 	@Test
-	public void joinPartyCallsChangePartyWithPassphrase()
-	{
-		executor.executeCommands(JOIN_JSON, TOKEN);
+	public void joinPartyCallsChangePartyWithPassphrase() {
+		executor.executeCommands(JOIN_JSON);
 
 		assertEquals(1, changePartyCalls.size());
 		assertEquals("test-pass", changePartyCalls.get(0));
 	}
 
 	@Test
-	public void leavePartyCallsChangePartyWithNull()
-	{
-		executor.executeCommands(LEAVE_JSON, TOKEN);
+	public void leavePartyCallsChangePartyWithNull() {
+		executor.executeCommands(LEAVE_JSON);
 
 		assertEquals(1, changePartyCalls.size());
 		assertNull(changePartyCalls.get(0));
 	}
 
 	@Test
-	public void joinPartySendsAckWithBearerHeader()
-	{
-		executor.executeCommands(JOIN_JSON, TOKEN);
+	public void joinPartySendsAckWithBearerHeader() {
+		executor.executeCommands(JOIN_JSON);
 
-		assertEquals(1, fakeHttpClient.ackRequests.size());
-		Request ackRequest = fakeHttpClient.ackRequests.get(0);
-		assertEquals(FAKE_SERVER_URL + CommandExecutor.ACK_PATH_PREFIX + "cmd-1" + CommandExecutor.ACK_PATH_SUFFIX, ackRequest.url().toString());
+		assertEquals(1, fakeHttpClient.capturedRequests.size());
+		Request ackRequest = fakeHttpClient.capturedRequests.get(0);
+		assertEquals(
+				FAKE_SERVER_URL + "/api/plugin/commands/cmd-1/ack", ackRequest.url().toString());
 		assertEquals("Bearer " + TOKEN, ackRequest.header("Authorization"));
 		assertEquals("POST", ackRequest.method());
 	}
 
 	@Test
-	public void leavePartySendsAckToCorrectUrl()
-	{
-		executor.executeCommands(LEAVE_JSON, TOKEN);
+	public void leavePartySendsAckToCorrectUrl() {
+		executor.executeCommands(LEAVE_JSON);
 
-		assertEquals(1, fakeHttpClient.ackRequests.size());
-		Request ackRequest = fakeHttpClient.ackRequests.get(0);
-		assertEquals(FAKE_SERVER_URL + CommandExecutor.ACK_PATH_PREFIX + "cmd-2" + CommandExecutor.ACK_PATH_SUFFIX, ackRequest.url().toString());
+		assertEquals(1, fakeHttpClient.capturedRequests.size());
+		Request ackRequest = fakeHttpClient.capturedRequests.get(0);
+		assertEquals(
+				FAKE_SERVER_URL + "/api/plugin/commands/cmd-2/ack", ackRequest.url().toString());
 	}
 
 	@Test
-	public void exceptionInChangePartyStillAcknowledges()
-	{
+	public void exceptionInChangePartyStillAcknowledges() {
 		shouldThrowOnChangeParty = true;
 
-		executor.executeCommands(JOIN_JSON, TOKEN);
+		executor.executeCommands(JOIN_JSON);
 
-		assertEquals(1, fakeHttpClient.ackRequests.size());
+		assertEquals(1, fakeHttpClient.capturedRequests.size());
 	}
 
 	@Test
-	public void unknownCommandTypeIsAcknowledged()
-	{
-		executor.executeCommands(UNKNOWN_TYPE_JSON, TOKEN);
+	public void unknownCommandTypeIsAcknowledged() {
+		executor.executeCommands(UNKNOWN_TYPE_JSON);
 
 		assertEquals(0, changePartyCalls.size());
-		assertEquals(1, fakeHttpClient.ackRequests.size());
+		assertEquals(1, fakeHttpClient.capturedRequests.size());
 	}
 
 	@Test
-	public void emptyCommandsArrayMakesNoCalls()
-	{
-		executor.executeCommands(EMPTY_JSON, TOKEN);
+	public void emptyCommandsArrayMakesNoCalls() {
+		executor.executeCommands(EMPTY_JSON);
 
 		assertEquals(0, changePartyCalls.size());
-		assertEquals(0, fakeHttpClient.ackRequests.size());
+		assertEquals(0, fakeHttpClient.capturedRequests.size());
 	}
 
 	@Test
-	public void parseCommandsDeserializesAllFields()
-	{
-		com.google.gson.JsonArray commands = executor.parseCommands(JOIN_JSON);
-
-		assertEquals(1, commands.size());
-		com.google.gson.JsonObject cmd = commands.get(0).getAsJsonObject();
-		assertEquals("cmd-1", cmd.get("id").getAsString());
-		assertEquals("JOIN_PARTY", cmd.get("type").getAsString());
-		assertEquals("test-pass", cmd.get("passphrase").getAsString());
-	}
-
-	@Test
-	public void multipleCommandsExecutedInOrder()
-	{
-		executor.executeCommands(MULTI_JSON, TOKEN);
+	public void multipleCommandsExecutedInOrder() {
+		executor.executeCommands(MULTI_JSON);
 
 		assertEquals(2, changePartyCalls.size());
 		assertEquals("pass1", changePartyCalls.get(0));
 		assertNull(changePartyCalls.get(1));
-		assertEquals(2, fakeHttpClient.ackRequests.size());
+		assertEquals(2, fakeHttpClient.capturedRequests.size());
 	}
 
 	@Test
-	public void ackRequestsMatchCommandIds()
-	{
-		executor.executeCommands(MULTI_JSON, TOKEN);
+	public void ackRequestsMatchCommandIds() {
+		executor.executeCommands(MULTI_JSON);
 
-		assertEquals(FAKE_SERVER_URL + CommandExecutor.ACK_PATH_PREFIX + "cmd-1" + CommandExecutor.ACK_PATH_SUFFIX,
-			fakeHttpClient.ackRequests.get(0).url().toString());
-		assertEquals(FAKE_SERVER_URL + CommandExecutor.ACK_PATH_PREFIX + "cmd-2" + CommandExecutor.ACK_PATH_SUFFIX,
-			fakeHttpClient.ackRequests.get(1).url().toString());
+		assertEquals(
+				FAKE_SERVER_URL + "/api/plugin/commands/cmd-1/ack",
+				fakeHttpClient.capturedRequests.get(0).url().toString());
+		assertEquals(
+				FAKE_SERVER_URL + "/api/plugin/commands/cmd-2/ack",
+				fakeHttpClient.capturedRequests.get(1).url().toString());
 	}
 
 	@Test
-	public void joinPartySendsChatMessage()
-	{
-		executor.executeCommands(JOIN_JSON, TOKEN);
+	public void joinPartySendsChatMessage() {
+		executor.executeCommands(JOIN_JSON);
 
 		assertEquals(1, chatMessageCalls.size());
 		assertEquals("You have joined the party.", chatMessageCalls.get(0));
 	}
 
 	@Test
-	public void leavePartyKickedSendsChatMessage()
-	{
-		executor.executeCommands(LEAVE_KICKED_JSON, TOKEN);
+	public void leavePartyKickedSendsChatMessage() {
+		executor.executeCommands(LEAVE_KICKED_JSON);
 
 		assertEquals(1, chatMessageCalls.size());
 		assertEquals("You have been kicked from the party.", chatMessageCalls.get(0));
 	}
 
 	@Test
-	public void leavePartyClosedSendsChatMessage()
-	{
-		executor.executeCommands(LEAVE_CLOSED_JSON, TOKEN);
+	public void leavePartyClosedSendsChatMessage() {
+		executor.executeCommands(LEAVE_CLOSED_JSON);
 
 		assertEquals(1, chatMessageCalls.size());
 		assertEquals("The party has been closed by the leader.", chatMessageCalls.get(0));
 	}
 
 	@Test
-	public void leavePartyLeftSendsNoChatMessage()
-	{
-		executor.executeCommands(LEAVE_LEFT_JSON, TOKEN);
+	public void leavePartyLeftSendsNoChatMessage() {
+		executor.executeCommands(LEAVE_LEFT_JSON);
 
 		assertEquals(0, chatMessageCalls.size());
 	}
 
 	@Test
-	public void leavePartyNullReasonSendsNoChatMessage()
-	{
-		executor.executeCommands(LEAVE_JSON, TOKEN);
+	public void leavePartyNullReasonSendsNoChatMessage() {
+		executor.executeCommands(LEAVE_JSON);
 
 		assertEquals(0, chatMessageCalls.size());
 	}
 
-	// --- Test doubles ---
+	@Test
+	public void pathTraversalCommandIdIsRejected() {
+		executor.executeCommands(PATH_TRAVERSAL_JSON);
 
-	static class AckCapturingHttpClient extends OkHttpClient
-	{
-		List<Request> ackRequests = new ArrayList<>();
-
-		@Override
-		public Call newCall(Request request)
-		{
-			ackRequests.add(request);
-			return new AckFakeCall(request);
-		}
-	}
-
-	static class AckFakeCall implements Call
-	{
-		private final Request request;
-
-		AckFakeCall(Request request)
-		{
-			this.request = request;
-		}
-
-		@Override
-		public Response execute() throws IOException
-		{
-			return new Response.Builder()
-				.request(request)
-				.protocol(Protocol.HTTP_1_1)
-				.code(200)
-				.message("OK")
-				.body(ResponseBody.create(
-					MediaType.parse("application/json"),
-					"{\"success\":true}"
-				))
-				.build();
-		}
-
-		@Override
-		public Request request()
-		{
-			return request;
-		}
-
-		@Override
-		public void enqueue(okhttp3.Callback callback)
-		{
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void cancel() {}
-
-		@Override
-		public boolean isExecuted()
-		{
-			return false;
-		}
-
-		@Override
-		public boolean isCanceled()
-		{
-			return false;
-		}
-
-		@Override
-		public Call clone()
-		{
-			return new AckFakeCall(request);
-		}
-
-		@Override
-		public okio.Timeout timeout()
-		{
-			return okio.Timeout.NONE;
-		}
-	}
-
-	static class FakeLinkConfig implements LinkConfig
-	{
-		private final String serverUrl;
-
-		FakeLinkConfig(String serverUrl)
-		{
-			this.serverUrl = serverUrl;
-		}
-
-		@Override
-		public String bearerToken()
-		{
-			return "";
-		}
-
-		@Override
-		public String serverUrl()
-		{
-			return serverUrl;
-		}
-
-		@Override
-		public boolean enabled()
-		{
-			return true;
-		}
+		assertEquals(1, changePartyCalls.size());
+		assertEquals(0, fakeHttpClient.capturedRequests.size());
 	}
 }

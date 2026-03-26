@@ -1,114 +1,66 @@
 package com.example.link;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import okhttp3.Call;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Protocol;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
-import org.junit.Before;
-import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-public class RsnDetectorTest
-{
+import okhttp3.Request;
+import org.junit.Before;
+import org.junit.Test;
+
+public class RsnDetectorTest {
 	private static final String FAKE_SERVER_URL = "http://localhost:3000";
 	private static final String BEARER_TOKEN = "test-token";
 
-	private CapturingHttpClient fakeHttpClient;
+	private FakeHttpClient fakeHttpClient;
 	private FakeConfig fakeConfig;
-	private List<String> suppliedNames;
-	private int supplierCallCount;
 
 	@Before
-	public void setUp()
-	{
-		fakeHttpClient = new CapturingHttpClient();
-		fakeConfig = new FakeConfig(BEARER_TOKEN, FAKE_SERVER_URL);
-		suppliedNames = new ArrayList<>();
-		supplierCallCount = 0;
+	public void setUp() {
+		fakeHttpClient = new FakeHttpClient();
+		fakeConfig = new FakeConfig(BEARER_TOKEN, FAKE_SERVER_URL, true);
 	}
 
-	private RsnDetector buildDetector(String... names)
-	{
-		suppliedNames = new ArrayList<>();
-		for (String name : names)
-		{
-			suppliedNames.add(name);
-		}
-		supplierCallCount = 0;
-
-		return new RsnDetector(fakeHttpClient, fakeConfig, () ->
-		{
-			if (supplierCallCount < suppliedNames.size())
-			{
-				return suppliedNames.get(supplierCallCount++);
-			}
-			return null;
-		}, Runnable::run);
+	private RsnDetector buildDetector(String nameOnLogin, String nameOnTick) {
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		boolean[] loginCalled = {false};
+		return new RsnDetector(
+				apiClient,
+				() -> {
+					if (!loginCalled[0]) {
+						loginCalled[0] = true;
+						return nameOnLogin;
+					}
+					return nameOnTick;
+				},
+				Runnable::run);
 	}
 
 	@Test
-	public void nameAvailableAtTick1PostsRsnOnce()
-	{
-		RsnDetector detector = buildDetector("Zezima");
+	public void nameAvailableAtLoginPostsImmediately() {
+		RsnDetector detector = buildDetector("Zezima", null);
 
 		detector.onLoggedIn();
-		detector.onGameTick(); // tick 1 — check fires, name found
-
-		assertEquals("Zezima", detector.getDetectedName());
-		assertEquals(1, fakeHttpClient.capturedRequests.size());
-		assertEquals(FAKE_SERVER_URL + RsnDetector.RSN_PATH, fakeHttpClient.capturedRequests.get(0).url().toString());
-	}
-
-	@Test
-	public void nameNullAtTick1And2ThenFoundAtTick4PostsOnce()
-	{
-		RsnDetector detector = buildDetector(null, null, "Zezima");
-
-		detector.onLoggedIn();
-		detector.onGameTick(); // tick 1 — check fires, null
-		detector.onGameTick(); // tick 2 — check fires, null
-		detector.onGameTick(); // tick 3 — no check (backoff gap)
-		detector.onGameTick(); // tick 4 — check fires, "Zezima"
 
 		assertEquals("Zezima", detector.getDetectedName());
 		assertEquals(1, fakeHttpClient.capturedRequests.size());
 	}
 
 	@Test
-	public void nameNullAtAllCheckPointsNeverPostsRsn()
-	{
-		RsnDetector detector = buildDetector(null, null, null, null);
+	public void nameNullAtLoginFoundOnNextTick() {
+		RsnDetector detector = buildDetector(null, "Zezima");
 
 		detector.onLoggedIn();
-		detector.onGameTick(); // tick 1
-		detector.onGameTick(); // tick 2
-		detector.onGameTick(); // tick 3 (gap)
-		detector.onGameTick(); // tick 4
-		detector.onGameTick(); // tick 5 (gap)
-		detector.onGameTick(); // tick 6 (gap)
-		detector.onGameTick(); // tick 7 (gap)
-		detector.onGameTick(); // tick 8
+		detector.onGameTick();
 
-		assertNull(detector.getDetectedName());
-		assertEquals(0, fakeHttpClient.capturedRequests.size());
+		assertEquals("Zezima", detector.getDetectedName());
+		assertEquals(1, fakeHttpClient.capturedRequests.size());
 	}
 
 	@Test
-	public void gameTickIsNoOpWhenNoPendingLogin()
-	{
-		RsnDetector detector = buildDetector("Zezima");
+	public void nameNullAtLoginAndTickGivesUp() {
+		RsnDetector detector = buildDetector(null, null);
 
-		// No onLoggedIn called — ticks are no-ops
-		detector.onGameTick();
-		detector.onGameTick();
+		detector.onLoggedIn();
 		detector.onGameTick();
 
 		assertNull(detector.getDetectedName());
@@ -116,162 +68,91 @@ public class RsnDetectorTest
 	}
 
 	@Test
-	public void postRsnSendsCorrectUrlAndAuthHeader()
-	{
-		RsnDetector detector = buildDetector("Zezima");
+	public void gameTickIsNoOpWhenNotPending() {
+		RsnDetector detector = buildDetector("Zezima", null);
 
 		detector.onLoggedIn();
-		detector.onGameTick(); // tick 1 — posts
+		detector.onGameTick(); // should be no-op since already resolved
+		detector.onGameTick();
 
 		assertEquals(1, fakeHttpClient.capturedRequests.size());
+	}
+
+	@Test
+	public void postRsnSendsCorrectUrlAndAuthHeader() {
+		RsnDetector detector = buildDetector("Zezima", null);
+
+		detector.onLoggedIn();
+
 		Request request = fakeHttpClient.capturedRequests.get(0);
-		assertEquals(FAKE_SERVER_URL + RsnDetector.RSN_PATH, request.url().toString());
+		assertEquals(FAKE_SERVER_URL + "/api/plugin/rsn", request.url().toString());
 		assertEquals("Bearer " + BEARER_TOKEN, request.header("Authorization"));
 		assertEquals("POST", request.method());
 	}
 
 	@Test
-	public void secondOnLoggedInResetsTickCounterForRetry()
-	{
-		RsnDetector detector = buildDetector(null, null, null, null, "Retry");
+	public void secondLoginResetsDetection() {
+		RsnDetector detector = buildDetector(null, null);
 
-		// First login attempt — all 4 checks return null, gives up
 		detector.onLoggedIn();
-		detector.onGameTick(); // tick 1
-		detector.onGameTick(); // tick 2
-		detector.onGameTick(); // tick 3 (gap)
-		detector.onGameTick(); // tick 4
-		detector.onGameTick(); // tick 5 (gap)
-		detector.onGameTick(); // tick 6 (gap)
-		detector.onGameTick(); // tick 7 (gap)
-		detector.onGameTick(); // tick 8
-
+		detector.onGameTick();
 		assertNull(detector.getDetectedName());
 
-		// Second login — fresh attempt, name available at tick 1
+		// Rebuild with a name available — simulates second login
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		detector = new RsnDetector(apiClient, () -> "Retry", Runnable::run);
 		detector.onLoggedIn();
-		detector.onGameTick(); // tick 1
 
 		assertEquals("Retry", detector.getDetectedName());
 		assertEquals(1, fakeHttpClient.capturedRequests.size());
 	}
 
 	@Test
-	public void postRsnSkipsRequestWhenTokenIsEmpty()
-	{
-		fakeConfig = new FakeConfig("", FAKE_SERVER_URL);
-		RsnDetector detector = buildDetector("Zezima");
+	public void postRsnSkipsRequestWhenTokenIsEmpty() {
+		fakeConfig = new FakeConfig("", FAKE_SERVER_URL, true);
+		RsnDetector detector = buildDetector("Zezima", null);
 
 		detector.onLoggedIn();
-		detector.onGameTick(); // tick 1 — would post, but token is empty
 
-		// Name is detected (getDetectedName set before postRsn call is aborted by token check)
 		assertEquals("Zezima", detector.getDetectedName());
 		assertEquals(0, fakeHttpClient.capturedRequests.size());
 	}
 
-	// --- Test doubles ---
+	@Test
+	public void reloginWithSameNameSkipsPost() {
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		RsnDetector detector = new RsnDetector(apiClient, () -> "Zezima", Runnable::run);
 
-	static class CapturingHttpClient extends OkHttpClient
-	{
-		List<Request> capturedRequests = new ArrayList<>();
+		detector.onLoggedIn();
+		assertEquals(1, fakeHttpClient.capturedRequests.size());
 
-		@Override
-		public Call newCall(Request request)
-		{
-			capturedRequests.add(request);
-			return new FakeOkCall(request);
-		}
+		detector.onLoggedIn();
+		assertEquals(1, fakeHttpClient.capturedRequests.size());
 	}
 
-	static class FakeOkCall implements Call
-	{
-		private final Request request;
+	@Test
+	public void reloginWithDifferentNamePostsAgain() {
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		String[] name = {"Zezima"};
+		RsnDetector detector = new RsnDetector(apiClient, () -> name[0], Runnable::run);
 
-		FakeOkCall(Request request)
-		{
-			this.request = request;
-		}
+		detector.onLoggedIn();
+		assertEquals(1, fakeHttpClient.capturedRequests.size());
 
-		@Override
-		public Response execute() throws IOException
-		{
-			return new Response.Builder()
-				.request(request)
-				.protocol(Protocol.HTTP_1_1)
-				.code(200)
-				.message("OK")
-				.body(ResponseBody.create(MediaType.parse("application/json"), "{\"success\":true}"))
-				.build();
-		}
-
-		@Override
-		public Request request()
-		{
-			return request;
-		}
-
-		@Override
-		public void enqueue(okhttp3.Callback callback)
-		{
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void cancel() {}
-
-		@Override
-		public boolean isExecuted()
-		{
-			return false;
-		}
-
-		@Override
-		public boolean isCanceled()
-		{
-			return false;
-		}
-
-		@Override
-		public Call clone()
-		{
-			return new FakeOkCall(request);
-		}
-
-		@Override
-		public okio.Timeout timeout()
-		{
-			return okio.Timeout.NONE;
-		}
+		name[0] = "Lynx Titan";
+		detector.onLoggedIn();
+		assertEquals(2, fakeHttpClient.capturedRequests.size());
 	}
 
-	static class FakeConfig implements LinkConfig
-	{
-		private final String token;
-		private final String serverUrl;
+	@Test(expected = IllegalArgumentException.class)
+	public void invalidServerUrlThrows() {
+		FakeConfig badConfig = new FakeConfig(BEARER_TOKEN, "ftp://evil.com", true);
+		new LinkApiClient(fakeHttpClient, badConfig);
+	}
 
-		FakeConfig(String token, String serverUrl)
-		{
-			this.token = token;
-			this.serverUrl = serverUrl;
-		}
-
-		@Override
-		public String bearerToken()
-		{
-			return token;
-		}
-
-		@Override
-		public String serverUrl()
-		{
-			return serverUrl;
-		}
-
-		@Override
-		public boolean enabled()
-		{
-			return true;
-		}
+	@Test(expected = IllegalArgumentException.class)
+	public void emptyServerUrlThrows() {
+		FakeConfig badConfig = new FakeConfig(BEARER_TOKEN, "", true);
+		new LinkApiClient(fakeHttpClient, badConfig);
 	}
 }

@@ -20,7 +20,7 @@ import net.runelite.client.plugins.PluginDescriptor;
 import okhttp3.OkHttpClient;
 
 @Slf4j
-@PluginDescriptor(name = "Link")
+@PluginDescriptor(name = "Party Link")
 public class LinkPlugin extends Plugin {
 	@Inject private Client client;
 	@Inject private PartyService partyService;

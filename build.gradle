@@ -1,5 +1,14 @@
 plugins {
 	id 'java'
+	id 'com.diffplug.spotless' version '6.25.0'
+}
+
+spotless {
+	java {
+		googleJavaFormat('1.17.0').aosp()
+		removeUnusedImports()
+		indentWithTabs()
+	}
 }
 
 repositories {

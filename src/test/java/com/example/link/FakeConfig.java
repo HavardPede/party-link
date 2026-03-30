@@ -1,28 +1,22 @@
 package com.example.link;
 
 class FakeConfig implements LinkConfig {
-	String token;
 	String serverUrl;
 	boolean isEnabled;
 
-	FakeConfig(String token, boolean isEnabled) {
-		this(token, "http://localhost:3000", isEnabled);
-	}
-
-	FakeConfig(String token, String serverUrl, boolean isEnabled) {
-		this.token = token;
+	FakeConfig(String serverUrl, boolean isEnabled) {
 		this.serverUrl = serverUrl;
 		this.isEnabled = isEnabled;
 	}
 
 	@Override
-	public String bearerToken() {
-		return token;
+	public String serverUrl() {
+		return serverUrl;
 	}
 
 	@Override
-	public String serverUrl() {
-		return serverUrl;
+	public String pairingKey() {
+		return "";
 	}
 
 	@Override

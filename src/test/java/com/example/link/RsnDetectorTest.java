@@ -12,16 +12,16 @@ public class RsnDetectorTest {
 	private static final String BEARER_TOKEN = "test-token";
 
 	private FakeHttpClient fakeHttpClient;
-	private FakeConfig fakeConfig;
+	private String token;
 
 	@Before
 	public void setUp() {
 		fakeHttpClient = new FakeHttpClient();
-		fakeConfig = new FakeConfig(BEARER_TOKEN, FAKE_SERVER_URL, true);
+		token = BEARER_TOKEN;
 	}
 
 	private RsnDetector buildDetector(String nameOnLogin, String nameOnTick) {
-		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, FAKE_SERVER_URL, () -> token);
 		boolean[] loginCalled = {false};
 		return new RsnDetector(
 				apiClient,
@@ -99,7 +99,7 @@ public class RsnDetectorTest {
 		assertNull(detector.getDetectedName());
 
 		// Rebuild with a name available — simulates second login
-		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, FAKE_SERVER_URL, () -> token);
 		detector = new RsnDetector(apiClient, () -> "Retry", Runnable::run);
 		detector.onLoggedIn();
 
@@ -109,7 +109,7 @@ public class RsnDetectorTest {
 
 	@Test
 	public void postRsnSkipsRequestWhenTokenIsEmpty() {
-		fakeConfig = new FakeConfig("", FAKE_SERVER_URL, true);
+		token = "";
 		RsnDetector detector = buildDetector("Zezima", null);
 
 		detector.onLoggedIn();
@@ -120,7 +120,7 @@ public class RsnDetectorTest {
 
 	@Test
 	public void reloginWithSameNameSkipsPost() {
-		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, FAKE_SERVER_URL, () -> token);
 		RsnDetector detector = new RsnDetector(apiClient, () -> "Zezima", Runnable::run);
 
 		detector.onLoggedIn();
@@ -132,7 +132,7 @@ public class RsnDetectorTest {
 
 	@Test
 	public void reloginWithDifferentNamePostsAgain() {
-		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, FAKE_SERVER_URL, () -> token);
 		String[] name = {"Zezima"};
 		RsnDetector detector = new RsnDetector(apiClient, () -> name[0], Runnable::run);
 
@@ -146,13 +146,11 @@ public class RsnDetectorTest {
 
 	@Test(expected = IllegalArgumentException.class)
 	public void invalidServerUrlThrows() {
-		FakeConfig badConfig = new FakeConfig(BEARER_TOKEN, "ftp://evil.com", true);
-		new LinkApiClient(fakeHttpClient, badConfig);
+		new LinkApiClient(fakeHttpClient, "ftp://evil.com", () -> token);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
 	public void emptyServerUrlThrows() {
-		FakeConfig badConfig = new FakeConfig(BEARER_TOKEN, "", true);
-		new LinkApiClient(fakeHttpClient, badConfig);
+		new LinkApiClient(fakeHttpClient, "", () -> token);
 	}
 }

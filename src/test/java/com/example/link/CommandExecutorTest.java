@@ -55,8 +55,7 @@ public class CommandExecutorTest {
 					changePartyCalls.add(passphrase);
 				};
 
-		FakeConfig fakeConfig = new FakeConfig(TOKEN, FAKE_SERVER_URL, true);
-		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, FAKE_SERVER_URL, () -> TOKEN);
 		executor =
 				new CommandExecutor(spyChangeParty, chatMessageCalls::add, apiClient, () -> null);
 	}

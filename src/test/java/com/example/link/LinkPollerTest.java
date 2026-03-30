@@ -17,16 +17,18 @@ import org.junit.Test;
 
 public class LinkPollerTest {
 	private FakeExecutor fakeExecutor;
-	private FakeConfig fakeConfig;
+	private String token;
 	private FakeHttpClient fakeHttpClient;
 	private LinkPoller poller;
 
 	@Before
 	public void setUp() {
 		fakeExecutor = new FakeExecutor();
-		fakeConfig = new FakeConfig("test-token", true);
+		token = "test-token";
 		fakeHttpClient = new FakeHttpClient();
-		LinkApiClient apiClient = new LinkApiClient(fakeHttpClient, fakeConfig);
+		FakeConfig fakeConfig = new FakeConfig("http://localhost:3000", true);
+		LinkApiClient apiClient =
+				new LinkApiClient(fakeHttpClient, "http://localhost:3000", () -> token);
 		CommandExecutor stubCommandExecutor =
 				new CommandExecutor(passphrase -> {}, message -> {}, apiClient, () -> null);
 		RsnDetector stubRsnDetector = new RsnDetector(apiClient, () -> null, Runnable::run);
@@ -101,7 +103,7 @@ public class LinkPollerTest {
 
 	@Test
 	public void pollSkipsWhenBearerTokenIsEmpty() {
-		fakeConfig.token = "";
+		token = "";
 
 		poller.start();
 		fakeExecutor.runNext();
@@ -111,7 +113,7 @@ public class LinkPollerTest {
 
 	@Test
 	public void pollSendsCorrectAuthorizationHeader() {
-		fakeConfig.token = "my-secret-token";
+		token = "my-secret-token";
 		fakeHttpClient.responseCode = 200;
 		fakeHttpClient.responseBody = "{\"commands\":[]}";
 

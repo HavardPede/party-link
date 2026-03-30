@@ -2,6 +2,7 @@ package com.example.link;
 
 import com.google.gson.JsonObject;
 import java.io.IOException;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
@@ -17,13 +18,13 @@ class LinkApiClient {
 	private static final Pattern SAFE_ID = Pattern.compile("^[a-zA-Z0-9_-]+$");
 
 	private final OkHttpClient httpClient;
-	private final LinkConfig config;
+	private final Supplier<String> tokenSupplier;
 	private final String baseUrl;
 
-	LinkApiClient(OkHttpClient httpClient, LinkConfig config) {
+	LinkApiClient(OkHttpClient httpClient, String serverUrl, Supplier<String> tokenSupplier) {
 		this.httpClient = httpClient;
-		this.config = config;
-		this.baseUrl = validateServerUrl(config.serverUrl()) + "/api/plugin";
+		this.tokenSupplier = tokenSupplier;
+		this.baseUrl = validateServerUrl(serverUrl) + "/api/plugin";
 	}
 
 	private static String validateServerUrl(String url) {
@@ -92,8 +93,34 @@ class LinkApiClient {
 		}
 	}
 
+	static String pair(OkHttpClient httpClient, String serverUrl, String pairingKey)
+			throws IOException {
+		String url = validateServerUrl(serverUrl) + "/api/plugin/pair";
+		JsonObject body = new JsonObject();
+		body.addProperty("code", pairingKey);
+
+		Request request =
+				new Request.Builder()
+						.url(url)
+						.post(RequestBody.create(JSON, body.toString()))
+						.build();
+
+		try (Response response = httpClient.newCall(request).execute()) {
+			if (!response.isSuccessful()) {
+				throw new IOException("Pairing failed (HTTP " + response.code() + ")");
+			}
+			String responseBody = response.body() != null ? response.body().string() : "";
+			JsonObject json =
+					new com.google.gson.JsonParser().parse(responseBody).getAsJsonObject();
+			if (!json.has("token")) {
+				throw new IOException("Invalid pairing response from server");
+			}
+			return json.get("token").getAsString();
+		}
+	}
+
 	boolean hasToken() {
-		String token = config.bearerToken();
+		String token = tokenSupplier.get();
 		return token != null && !token.isEmpty();
 	}
 
@@ -101,7 +128,7 @@ class LinkApiClient {
 		Request.Builder builder =
 				new Request.Builder()
 						.url(baseUrl + path)
-						.header("Authorization", "Bearer " + config.bearerToken());
+						.header("Authorization", "Bearer " + tokenSupplier.get());
 		if (playerName != null) {
 			builder.header("X-Player-Name", playerName);
 		}

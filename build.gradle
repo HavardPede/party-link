@@ -23,7 +23,7 @@ repositories {
 }
 
 def runeLiteVersion = 'latest.release'
-def pluginMainClass = 'com.example.link.LinkPluginTest'
+def pluginMainClass = 'com.github.havardpede.partylink.LinkPluginTest'
 
 dependencies {
 	compileOnly group: 'net.runelite', name:'client', version: runeLiteVersion
@@ -36,7 +36,7 @@ dependencies {
 	testImplementation group: 'net.runelite', name:'jshell', version: runeLiteVersion
 }
 
-group = 'com.example.link'
+group = 'com.github.havardpede.partylink'
 version = '1.0-SNAPSHOT'
 
 tasks.withType(JavaCompile).configureEach {

@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;

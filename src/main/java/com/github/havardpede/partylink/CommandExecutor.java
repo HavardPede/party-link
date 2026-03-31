@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 import java.util.List;
 import java.util.function.Consumer;

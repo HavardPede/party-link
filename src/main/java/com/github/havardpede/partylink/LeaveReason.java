@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 enum LeaveReason {
 	KICKED,

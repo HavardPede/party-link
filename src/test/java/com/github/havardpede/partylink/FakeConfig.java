@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 class FakeConfig implements LinkConfig {
 	String serverUrl;

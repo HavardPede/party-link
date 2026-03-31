@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;

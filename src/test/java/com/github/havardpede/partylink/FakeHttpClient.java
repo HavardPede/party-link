@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 import java.io.IOException;
 import java.util.ArrayList;

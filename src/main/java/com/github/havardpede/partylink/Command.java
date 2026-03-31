@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;

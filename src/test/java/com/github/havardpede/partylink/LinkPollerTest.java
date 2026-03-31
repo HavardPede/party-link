@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

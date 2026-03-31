@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;

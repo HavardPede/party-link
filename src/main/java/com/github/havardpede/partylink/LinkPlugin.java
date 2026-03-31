@@ -1,4 +1,4 @@
-package com.example.link;
+package com.github.havardpede.partylink;
 
 import com.google.inject.Provides;
 import java.io.IOException;

@@ -145,6 +145,9 @@ class WebSocketManager extends WebSocketListener {
 	@Override
 	public void onFailure(WebSocket ws, Throwable t, Response response) {
 		log.warn("WebSocket failure: {}", t.getMessage());
+		if (ws != webSocket) {
+			return;
+		}
 		authenticated = false;
 		scheduleReconnect();
 	}
@@ -152,6 +155,9 @@ class WebSocketManager extends WebSocketListener {
 	@Override
 	public void onClosed(WebSocket ws, int code, String reason) {
 		log.info("WebSocket closed: {} {}", code, reason);
+		if (ws != webSocket) {
+			return;
+		}
 		authenticated = false;
 		scheduleReconnect();
 	}

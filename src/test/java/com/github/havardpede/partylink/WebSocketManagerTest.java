@@ -207,6 +207,35 @@ public class WebSocketManagerTest {
 	}
 
 	@Test
+	public void staleClosedCallbackDoesNotReconnect() {
+		RecordingWebSocket oldWs = new RecordingWebSocket();
+		manager.onOpen(oldWs, null);
+
+		// Simulate connect() replacing the old WS — webSocket is now null or a new instance
+		RecordingWebSocket newWs = new RecordingWebSocket();
+		manager.onOpen(newWs, null);
+
+		// Old WS close fires after replacement
+		manager.onClosed(oldWs, 1000, "replaced");
+
+		assertEquals(0, fakeExecutor.scheduledTasks.size());
+	}
+
+	@Test
+	public void staleFailureCallbackDoesNotReconnect() {
+		RecordingWebSocket oldWs = new RecordingWebSocket();
+		manager.onOpen(oldWs, null);
+
+		RecordingWebSocket newWs = new RecordingWebSocket();
+		manager.onOpen(newWs, null);
+
+		// Old WS failure fires after replacement
+		manager.onFailure(oldWs, new RuntimeException("stale"), null);
+
+		assertEquals(0, fakeExecutor.scheduledTasks.size());
+	}
+
+	@Test
 	public void errorMessageIsLogged() {
 		simulateAuthFlow();
 

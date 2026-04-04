@@ -17,21 +17,11 @@ public interface LinkConfig extends Config {
 	String connectionSection = "connection";
 
 	@ConfigItem(
-			keyName = "serverUrl",
-			name = "Server URL",
-			description = "Base URL of the Party Link server (e.g. http://localhost:3000)",
-			position = 0,
-			section = connectionSection)
-	default String serverUrl() {
-		return "";
-	}
-
-	@ConfigItem(
 			keyName = "websocketUrl",
 			name = "WebSocket URL",
 			description =
 					"WebSocket URL for real-time command delivery " + "(e.g. wss://example.com)",
-			position = 1,
+			position = 0,
 			section = connectionSection)
 	default String websocketUrl() {
 		return "wss://osrs-party-finder-relay.fly.dev";
@@ -44,7 +34,7 @@ public interface LinkConfig extends Config {
 					"Paste your pairing code from the Party Link website. "
 							+ "Clearing this field will unpair your account.",
 			secret = true,
-			position = 2,
+			position = 1,
 			section = connectionSection)
 	default String pairingKey() {
 		return "";
@@ -56,7 +46,7 @@ public interface LinkConfig extends Config {
 			description =
 					"Enable automatic party sync. When enabled, the plugin polls the server "
 							+ "for commands and executes them in your game client.",
-			position = 3,
+			position = 2,
 			section = connectionSection)
 	default boolean enabled() {
 		return true;

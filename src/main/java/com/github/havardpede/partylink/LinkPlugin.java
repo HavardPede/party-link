@@ -1,7 +1,6 @@
 package com.github.havardpede.partylink;
 
 import com.google.inject.Provides;
-import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -57,13 +56,16 @@ public class LinkPlugin extends Plugin {
 						okHttpClient,
 						wsUrl,
 						this::getStoredToken,
+						this::getPairingCode,
+						this::onPairResult,
 						commandExecutor,
 						executorService);
 		rsnDetector = new RsnDetector(webSocketManager::sendIdentify, this::getPlayerName);
-		log.info("Link plugin started");
+		log.info("Link plugin started: gameState={}, enabled={}, hasToken={}, hasPairingCode={}",
+				client.getGameState(), config.enabled(), hasToken(), hasPairingCode());
 
 		if (client.getGameState() == GameState.LOGGED_IN) {
-			if (config.enabled() && hasToken()) {
+			if (config.enabled() && (hasToken() || hasPairingCode())) {
 				webSocketManager.connect();
 			}
 			rsnDetector.onLoggedIn();
@@ -82,7 +84,7 @@ public class LinkPlugin extends Plugin {
 	public void onGameStateChanged(GameStateChanged event) {
 		switch (event.getGameState()) {
 			case LOGGED_IN:
-				if (config.enabled() && hasToken()) {
+				if (config.enabled() && (hasToken() || hasPairingCode())) {
 					webSocketManager.connect();
 				}
 				rsnDetector.onLoggedIn();
@@ -146,8 +148,16 @@ public class LinkPlugin extends Plugin {
 	}
 
 	private boolean hasToken() {
-		String token = getStoredToken();
-		return !token.isEmpty();
+		return !getStoredToken().isEmpty();
+	}
+
+	private String getPairingCode() {
+		String code = config.pairingKey();
+		return code != null ? code : "";
+	}
+
+	private boolean hasPairingCode() {
+		return !getPairingCode().isEmpty();
 	}
 
 	private void restart() {
@@ -161,25 +171,22 @@ public class LinkPlugin extends Plugin {
 			sendChatMessage("Party Link: Unpaired.");
 			return;
 		}
-		String serverUrl = config.serverUrl();
-		if (serverUrl == null || serverUrl.isEmpty()) {
-			sendChatMessage("Party Link: Set the server URL before pairing.");
-			return;
-		}
-		executorService.submit(() -> exchangePairingKey(serverUrl, pairingKey));
+		restart();
 	}
 
-	private void exchangePairingKey(String serverUrl, String pairingKey) {
-		try {
-			String token = LinkApiClient.pair(okHttpClient, serverUrl, pairingKey);
+	private void onPairResult(String token) {
+		clearPairingCode();
+		if (token == null) {
+			sendChatMessage("Party Link: Pairing failed. Check your code and try again.");
+		} else {
 			configManager.setConfiguration(
 					LinkConfig.CONFIG_GROUP, LinkConfig.BEARER_TOKEN_KEY, token);
 			sendChatMessage("Party Link: Paired successfully!");
-			restart();
-		} catch (IOException e) {
-			log.warn("Pairing failed: {}", e.getMessage());
-			sendChatMessage("Party Link: Pairing failed - " + e.getMessage());
 		}
+	}
+
+	private void clearPairingCode() {
+		configManager.unsetConfiguration(LinkConfig.CONFIG_GROUP, "pairingKey");
 	}
 
 	private void sendChatMessage(String message) {

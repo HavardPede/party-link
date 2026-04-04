@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
@@ -21,6 +22,8 @@ class WebSocketManager extends WebSocketListener {
 	private final OkHttpClient httpClient;
 	private final String wsUrl;
 	private final Supplier<String> tokenSupplier;
+	private final Supplier<String> pairingCodeSupplier;
+	private final Consumer<String> onPairResult;
 	private final CommandExecutor commandExecutor;
 	private final ScheduledExecutorService executor;
 
@@ -35,11 +38,15 @@ class WebSocketManager extends WebSocketListener {
 			OkHttpClient httpClient,
 			String wsUrl,
 			Supplier<String> tokenSupplier,
+			Supplier<String> pairingCodeSupplier,
+			Consumer<String> onPairResult,
 			CommandExecutor commandExecutor,
 			ScheduledExecutorService executor) {
 		this.httpClient = httpClient;
 		this.wsUrl = validateWsUrl(wsUrl);
 		this.tokenSupplier = tokenSupplier;
+		this.pairingCodeSupplier = pairingCodeSupplier;
+		this.onPairResult = onPairResult;
 		this.commandExecutor = commandExecutor;
 		this.executor = executor;
 	}
@@ -91,10 +98,18 @@ class WebSocketManager extends WebSocketListener {
 	public void onOpen(WebSocket ws, Response response) {
 		log.info("WebSocket opened");
 		webSocket = ws;
-		JsonObject auth = new JsonObject();
-		auth.addProperty("type", "AUTH");
-		auth.addProperty("token", tokenSupplier.get());
-		send(auth);
+		String pairingCode = pairingCodeSupplier.get();
+		if (pairingCode != null && !pairingCode.isEmpty()) {
+			JsonObject pair = new JsonObject();
+			pair.addProperty("type", "PAIR");
+			pair.addProperty("code", pairingCode);
+			send(pair);
+		} else {
+			JsonObject auth = new JsonObject();
+			auth.addProperty("type", "AUTH");
+			auth.addProperty("token", tokenSupplier.get());
+			send(auth);
+		}
 	}
 
 	@Override
@@ -108,6 +123,12 @@ class WebSocketManager extends WebSocketListener {
 				break;
 			case "AUTH_ERROR":
 				handleAuthError(msg);
+				break;
+			case "PAIR_OK":
+				handlePairOk(msg);
+				break;
+			case "PAIR_ERROR":
+				handlePairError(msg);
 				break;
 			case "COMMAND":
 				handleCommand(text);
@@ -148,6 +169,21 @@ class WebSocketManager extends WebSocketListener {
 	private void handleAuthError(JsonObject msg) {
 		String reason = msg.has("reason") ? msg.get("reason").getAsString() : "unknown";
 		log.error("WebSocket auth failed: {}", reason);
+		shouldReconnect = false;
+		closeExisting();
+	}
+
+	private void handlePairOk(JsonObject msg) {
+		String token = msg.has("token") ? msg.get("token").getAsString() : null;
+		log.info("WebSocket pairing succeeded");
+		onPairResult.accept(token);
+		handleAuthOk();
+	}
+
+	private void handlePairError(JsonObject msg) {
+		String reason = msg.has("reason") ? msg.get("reason").getAsString() : "unknown";
+		log.error("WebSocket pairing failed: {}", reason);
+		onPairResult.accept(null);
 		shouldReconnect = false;
 		closeExisting();
 	}

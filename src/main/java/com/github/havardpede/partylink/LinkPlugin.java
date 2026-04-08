@@ -210,7 +210,7 @@ public class LinkPlugin extends Plugin {
 		chatMessageManager.queue(
 				QueuedMessage.builder()
 						.type(ChatMessageType.GAMEMESSAGE)
-						.runeLiteFormattedMessage(message)
+						.runeLiteFormattedMessage("<col=ff7700>" + message + "</col>")
 						.build());
 	}
 }

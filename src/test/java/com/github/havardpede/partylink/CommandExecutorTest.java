@@ -34,7 +34,7 @@ public class CommandExecutorTest {
 
 	@Test
 	public void joinPartyCallsChangePartyWithPassphrase() {
-		executor.execute(commandFromJson("JOIN_PARTY", "test-pass", null));
+		executor.execute(commandFromJson("JOIN_PARTY", "test-pass", null, null));
 
 		assertEquals(1, changePartyCalls.size());
 		assertEquals("test-pass", changePartyCalls.get(0));
@@ -42,7 +42,7 @@ public class CommandExecutorTest {
 
 	@Test
 	public void leavePartyCallsChangePartyWithNull() {
-		executor.execute(commandFromJson("LEAVE_PARTY", null, null));
+		executor.execute(commandFromJson("LEAVE_PARTY", null, null, null));
 
 		assertEquals(1, changePartyCalls.size());
 		assertNull(changePartyCalls.get(0));
@@ -52,29 +52,52 @@ public class CommandExecutorTest {
 	public void exceptionInChangePartyDoesNotPropagate() {
 		shouldThrowOnChangeParty = true;
 
-		executor.execute(commandFromJson("JOIN_PARTY", "test-pass", null));
+		executor.execute(commandFromJson("JOIN_PARTY", "test-pass", null, null));
 
 		assertEquals(0, changePartyCalls.size());
 	}
 
 	@Test
 	public void unknownCommandTypeIsIgnored() {
-		executor.execute(commandFromJson("UNKNOWN_CMD", null, null));
+		executor.execute(commandFromJson("UNKNOWN_CMD", null, null, null));
 
 		assertEquals(0, changePartyCalls.size());
 	}
 
 	@Test
-	public void joinPartySendsChatMessage() {
-		executor.execute(commandFromJson("JOIN_PARTY", "test-pass", null));
+	public void joinPartySendsChatMessageWithoutRole() {
+		executor.execute(commandFromJson("JOIN_PARTY", "test-pass", null, null));
 
 		assertEquals(1, chatMessageCalls.size());
 		assertEquals("You have joined the party.", chatMessageCalls.get(0));
 	}
 
 	@Test
+	public void joinPartySendsChatMessageWithRole() {
+		executor.execute(commandFromJson("JOIN_PARTY", "test-pass", null, "tank"));
+
+		assertEquals(1, chatMessageCalls.size());
+		assertEquals("You have joined the party. Your role is tank.", chatMessageCalls.get(0));
+	}
+
+	@Test
+	public void roleChangeSendsChatMessage() {
+		executor.execute(commandFromJson("ROLE_CHANGE", null, null, "healer"));
+
+		assertEquals(1, chatMessageCalls.size());
+		assertEquals("Your role has been changed to healer.", chatMessageCalls.get(0));
+	}
+
+	@Test
+	public void roleChangeDoesNotCallChangeParty() {
+		executor.execute(commandFromJson("ROLE_CHANGE", null, null, "healer"));
+
+		assertEquals(0, changePartyCalls.size());
+	}
+
+	@Test
 	public void leavePartyKickedSendsChatMessage() {
-		executor.execute(commandFromJson("LEAVE_PARTY", null, "KICKED"));
+		executor.execute(commandFromJson("LEAVE_PARTY", null, "KICKED", null));
 
 		assertEquals(1, chatMessageCalls.size());
 		assertEquals("You have been kicked from the party.", chatMessageCalls.get(0));
@@ -82,7 +105,7 @@ public class CommandExecutorTest {
 
 	@Test
 	public void leavePartyClosedSendsChatMessage() {
-		executor.execute(commandFromJson("LEAVE_PARTY", null, "CLOSED"));
+		executor.execute(commandFromJson("LEAVE_PARTY", null, "CLOSED", null));
 
 		assertEquals(1, chatMessageCalls.size());
 		assertEquals("The party has been closed by the leader.", chatMessageCalls.get(0));
@@ -90,19 +113,20 @@ public class CommandExecutorTest {
 
 	@Test
 	public void leavePartyLeftSendsNoChatMessage() {
-		executor.execute(commandFromJson("LEAVE_PARTY", null, "LEFT"));
+		executor.execute(commandFromJson("LEAVE_PARTY", null, "LEFT", null));
 
 		assertEquals(0, chatMessageCalls.size());
 	}
 
 	@Test
 	public void leavePartyNullReasonSendsNoChatMessage() {
-		executor.execute(commandFromJson("LEAVE_PARTY", null, null));
+		executor.execute(commandFromJson("LEAVE_PARTY", null, null, null));
 
 		assertEquals(0, chatMessageCalls.size());
 	}
 
-	private static Command commandFromJson(String commandType, String passphrase, String reason) {
+	private static Command commandFromJson(
+			String commandType, String passphrase, String reason, String role) {
 		StringBuilder json = new StringBuilder();
 		json.append("{\"type\":\"COMMAND\",\"id\":\"cmd-1\",\"command\":\"");
 		json.append(commandType);
@@ -110,6 +134,8 @@ public class CommandExecutorTest {
 		json.append(passphrase != null ? "\"" + passphrase + "\"" : "null");
 		json.append(",\"partyId\":\"p1\",\"reason\":");
 		json.append(reason != null ? "\"" + reason + "\"" : "null");
+		json.append(",\"role\":");
+		json.append(role != null ? "\"" + role + "\"" : "null");
 		json.append("}");
 		return Command.fromJson(json.toString());
 	}

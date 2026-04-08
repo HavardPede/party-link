@@ -22,9 +22,13 @@ class CommandExecutor {
 		try {
 			switch (command.type) {
 				case JOIN_PARTY:
-					log.info("Executing JOIN_PARTY (command={})", command.id);
+					log.info("Executing JOIN_PARTY (command={}, role={})", command.id, command.role);
 					changeParty.accept(command.passphrase);
-					sendChatMessage.accept("You have joined the party.");
+					if (command.role != null) {
+						sendChatMessage.accept("You have joined the party. Your role is " + command.role + ".");
+					} else {
+						sendChatMessage.accept("You have joined the party.");
+					}
 					break;
 				case LEAVE_PARTY:
 					log.info(
@@ -37,6 +41,10 @@ class CommandExecutor {
 						sendChatMessage.accept("The party has been closed by the leader.");
 					}
 					changeParty.accept(null);
+					break;
+				case ROLE_CHANGE:
+					log.info("Executing ROLE_CHANGE (command={}, role={})", command.id, command.role);
+					sendChatMessage.accept("Your role has been changed to " + command.role + ".");
 					break;
 			}
 		} catch (RuntimeException e) {

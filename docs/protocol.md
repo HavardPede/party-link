@@ -33,7 +33,7 @@ All messages are JSON objects with a `type` field that identifies the message ki
 
 ## Connection
 
-The plugin connects to a configurable WebSocket URL (default: `wss://osrs-party-finder-relay.fly.dev`). The URL must begin with `wss://` or `ws://`.
+The plugin connects to a configurable WebSocket URL. The URL must begin with `wss://` or `ws://`.
 
 On `onOpen`, the plugin immediately sends either a `PAIR` or `AUTH` message depending on whether a pairing code or a stored token is available.
 
@@ -210,9 +210,7 @@ Deliver a party management command to the client. The plugin executes it and res
   "type": "COMMAND",
   "id": "cmd-1",
   "command": "JOIN_PARTY",
-  "passphrase": "coral-lime-oak-river",
-  "partyId": "p1",
-  "reason": null
+  "passphrase": "coral-lime-oak-river"
 }
 ```
 
@@ -221,8 +219,6 @@ Deliver a party management command to the client. The plugin executes it and res
   "type": "COMMAND",
   "id": "cmd-2",
   "command": "LEAVE_PARTY",
-  "passphrase": null,
-  "partyId": "p1",
   "reason": "KICKED"
 }
 ```
@@ -249,7 +245,6 @@ Instructs the client to join a RuneLite party.
 | `id`         | string | yes      | Unique command identifier             |
 | `command`    | string | yes      | `"JOIN_PARTY"`                        |
 | `passphrase` | string | yes      | The RuneLite party passphrase to join |
-| `partyId`    | string | no       | Server-side party identifier          |
 
 ### `LEAVE_PARTY`
 
@@ -259,7 +254,6 @@ Instructs the client to leave their current RuneLite party.
 |-----------|--------|----------|--------------------------------------|
 | `id`      | string | yes      | Unique command identifier            |
 | `command` | string | yes      | `"LEAVE_PARTY"`                      |
-| `partyId` | string | no       | Server-side party identifier         |
 | `reason`  | string | no       | Why the player is leaving            |
 
 **Leave reasons:**
@@ -269,6 +263,16 @@ Instructs the client to leave their current RuneLite party.
 | `KICKED` | The player was removed by the leader |
 | `CLOSED` | The party was disbanded              |
 | `LEFT`   | The player left voluntarily          |
+
+### `ROLE_CHANGE`
+
+Notifies the client that their role in the party has changed. The plugin displays the new role to the player but does not alter party membership.
+
+| Field     | Type   | Required | Description                      |
+|-----------|--------|----------|----------------------------------|
+| `id`      | string | yes      | Unique command identifier        |
+| `command` | string | yes      | `"ROLE_CHANGE"`                  |
+| `role`    | string | yes      | The player's new role            |
 
 ## Connection Lifecycle
 

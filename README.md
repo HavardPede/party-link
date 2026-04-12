@@ -37,10 +37,10 @@ Full specification: **[docs/protocol.md](docs/protocol.md)**
 
 ## Setup
 
-1. Install the plugin from the RuneLite Plugin Hub
-2. In the plugin settings, enter your server URL
+1. Install the plugin from the RuneLite Plugin Hub (or build from source — see below)
+2. In the plugin settings, enter your server's WebSocket URL
 3. Paste the pairing code from your server's web interface
-4. Enable sync — the plugin will start receiving commands
+4. Enable sync — the plugin will connect and start receiving commands
 
 ## Building
 
@@ -50,4 +50,4 @@ Full specification: **[docs/protocol.md](docs/protocol.md)**
 
 ## License
 
-MIT
+BSD 2-Clause. See [LICENSE](LICENSE).

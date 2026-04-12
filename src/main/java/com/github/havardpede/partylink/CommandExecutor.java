@@ -24,7 +24,8 @@ class CommandExecutor {
 				log.info("Executing JOIN_PARTY (command={}, role={})", command.id, command.role);
 				changeParty.accept(command.passphrase);
 				if (command.role != null) {
-					sendChatMessage.accept("You have joined the party. Your role is " + command.role + ".");
+					sendChatMessage.accept(
+							"You have joined the party. Your role is " + command.role + ".");
 				} else {
 					sendChatMessage.accept("You have joined the party.");
 				}

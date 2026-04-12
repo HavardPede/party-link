@@ -10,7 +10,8 @@ class Command {
 	final LeaveReason reason;
 	final String role;
 
-	private Command(String id, CommandType type, String passphrase, LeaveReason reason, String role) {
+	private Command(
+			String id, CommandType type, String passphrase, LeaveReason reason, String role) {
 		this.id = id;
 		this.type = type;
 		this.passphrase = passphrase;
@@ -33,19 +34,5 @@ class Command {
 			return null;
 		}
 		return obj.get(key).getAsString();
-	}
-}
-
-enum CommandType {
-	JOIN_PARTY,
-	LEAVE_PARTY,
-	ROLE_CHANGE;
-
-	static CommandType fromString(String value) {
-		try {
-			return valueOf(value);
-		} catch (IllegalArgumentException e) {
-			return null;
-		}
 	}
 }
